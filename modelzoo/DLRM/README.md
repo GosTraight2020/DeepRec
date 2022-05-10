@@ -174,22 +174,22 @@ The benchmark is performed on the [Alibaba Cloud ECS general purpose instance fa
         <td rowspan="3">DLRM</td>
         <td>Community TensorFlow</td>
         <td>FP32</td>
-        <td>0.778858</td>
-        <td>0.77024</td>
+        <td>0.782506</td>
+        <td>0.780192</td>
         <td>34383.52(baseline)</td>
     </tr>
     <tr>
         <td>DeepRec w/ oneDNN</td>
         <td>FP32</td>
-        <td>0.780382</td>
-        <td>0.770818</td>
+        <td>0.783689</td>
+        <td>0.781204</td>
         <td>58637.40(1.71x)</td>
     </tr>
     <tr>
         <td>DeepRec w/ oneDNN</td>
         <td>FP32+BF16</td>
-        <td>0.78029</td>
-        <td>0.773521</td>
+        <td>0.783418</td>
+        <td>0.781855</td>
         <td> </td>
     </tr>
 </table>
