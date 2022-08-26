@@ -78,6 +78,7 @@ Embedding-Variable-Export-Format
 
 AdamAsync-Optimizer
 AdagradDecay-Optimizer
+AdamW-Optimizer
 ```
 
 ```{toctree}
@@ -105,6 +106,7 @@ BFloat16
 WorkQueue
 KafkaDataset
 KafkaGroupIODataset
+ParquetDataset
 ```
 
 ```{toctree}

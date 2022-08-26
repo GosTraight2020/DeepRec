@@ -293,6 +293,7 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
     self._storage_path = evconfig.storage_path
     self._storage_size = evconfig.storage_size
     self._default_value_dim = evconfig.default_value_dim
+    self._default_value_no_permission = evconfig.default_value_no_permission
     if (isinstance(evconfig.filter_strategy, variables.CounterFilter)  and self._filter_freq != 0) or \
        self._steps_to_live not in [0, None] or self._record_version or \
        self._storage_type in multi_level_list or self._record_freq:
@@ -325,7 +326,7 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
               list=attr_value_pb2.AttrValue.ListValue(
                   s=[compat.as_bytes("loc:@%s" % handle_name)]))
           with ops.get_default_graph()._attr_scope({"_class": attr}):
-            with ops.name_scope("Initializer"), ops.device(None):
+            with ops.name_scope("Initializer"):
               initial_value = ops.convert_to_tensor(
                   initial_value(), name="initial_value", dtype=dtype)
             rank = initial_value.get_shape().rank - 1
@@ -386,7 +387,8 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
         with ops.name_scope("IsInitialized"):
           self._is_initialized_op = (
               gen_kv_variable_ops.kv_var_is_initialized_op(self._handle,
-                                                           Tkeys=self._invalid_key_type))
+                                                           Tkeys=self._invalid_key_type,
+                                                           dtype=self._dtype))
         if initial_value is not None:
           with ops.name_scope("Assign") as n, ops.colocate_with(self._handle):
             with ops.control_dependencies(None if self._is_primary else [self._primary.initializer]):
@@ -414,6 +416,7 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
                     storage_path = self._storage_path,
                     storage_size = self._storage_size,
                     default_value_dim = self._default_value_dim,
+                    default_value_no_permission = self._default_value_no_permission,
                     record_freq = self._record_freq,
                     record_version = self._record_version,
                     name=n))
@@ -517,6 +520,7 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
     self._storage_path = self._initializer_op.get_attr("storage_path")
     self._storage_size = self._initializer_op.get_attr("storage_size")
     self._default_value_dim = self._initializer_op.get_attr("default_value_dim")
+    self._default_value_no_permission= self._initializer_op.get_attr("default_value_no_permission")
     self._record_freq = self._initializer_op.get_attr("record_freq")
     self._record_version = self._initializer_op.get_attr("record_version")
 
@@ -622,7 +626,8 @@ class EmbeddingVariable(resource_variable_ops.ResourceVariable):
   def total_count(self):
     """The shape of this variable."""
     return gen_kv_variable_ops.kv_variable_shape(self._handle,
-		    Tkeys=self._invalid_key_type)
+               Tkeys=self._invalid_key_type,
+               dtype=self._dtype)
 
   def export(self):
     return gen_kv_variable_ops.kv_resource_export(self._handle,
@@ -902,6 +907,16 @@ class DynamicEmbeddingVariable(resource_variable_ops.ResourceVariable):
 
 def _dense_var_to_tensor(var, dtype=None, name=None, as_ref=False):
   return var._dense_var_to_tensor(dtype=dtype, name=name, as_ref=as_ref)  # pylint: disable=protected-access
+
+def identity(var):
+  if "GPU" in var.device:
+    with ops.device(var.device):
+      keys, values, versions, freqs =  gen_kv_variable_ops.kv_resource_export(var._handle, Tkeys=var._invalid_key_type, Tvalues=var.dtype)
+    part_keys, part_values, part_version, part_freqs, part_offset = \
+          gen_kv_variable_ops.kv_resource_generate_partitioned_tensor(keys, values, versions, freqs)
+    return [part_keys, part_values, part_version, part_freqs, part_offset]
+  else:
+    return var.handle
 
 
 # Register a conversion function which reads the value of the variable,

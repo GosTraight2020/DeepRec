@@ -436,7 +436,7 @@ tf_cc_test(
     ],
 )
 
-tf_cc_test(
+tf_cuda_cc_test(
     name = "embedding_variable_ops_test",
     srcs = ["embedding_variable_ops_test.cc"],
     extra_copts = ["-fexceptions", "-g"],
@@ -1087,7 +1087,7 @@ tf_kernel_library(
 tf_kernel_library(
     name = "concat_op",
     prefix = "concat_op",
-    deps = ARRAY_DEPS,
+    deps = ARRAY_DEPS + mkl_deps(),
 )
 
 tf_kernel_library(
@@ -2843,6 +2843,7 @@ tf_kernel_library(
         ":state",
         ":training_op_helpers",
         ":variable_ops",
+        "//tensorflow/core:embedding_gpu",
         "//tensorflow/core:framework",
         "//tensorflow/core:lib",
         "//tensorflow/core:kv_variable_ops_op_lib",
@@ -2851,8 +2852,9 @@ tf_kernel_library(
         "@sparsehash_c11//:dense_hash_map",
         "@libcuckoo//:libcuckoo",
         "@com_github_google_leveldb//:leveldb",
-        "@cuCollections//:cuco_hash_table",
-    ],
+    ] + select({"//tensorflow:with_gpu_ev_support":
+                 ["@cuCollections//:cuco_hash_table"],
+                 "//conditions:default": []}),
 )
 
 tf_kernel_library(
@@ -4160,6 +4162,40 @@ tf_cc_test_mkl(
 )
 
 tf_kernel_library(
+    name = "fused_layer_normalize_ops",
+    srcs = [
+        "fused_layer_norm/fused_layer_normalize_ops.cc",
+    ],
+    hdrs = [
+        "fused_layer_norm/compile_util.h",
+        ],
+    deps = ["//third_party/eigen3"] + DYNAMIC_DEPS,
+)
+
+tf_cc_test(
+    name = "fused_layer_normalize_ops_test",
+    size = "small",
+    srcs = [
+        "fused_layer_norm/fused_layer_normalize_ops_test.cc",
+    ],
+    deps = [
+        ":fused_layer_normalize_ops",
+        ":ops_testutil",
+        ":ops_util",
+        "//tensorflow/cc:cc_ops",
+        "//tensorflow/core:core_cpu",
+        "//tensorflow/core:framework",
+        "//tensorflow/core:framework_internal",
+        "//tensorflow/core:lib",
+        "//tensorflow/core:protos_all_cc",
+        "//tensorflow/core:tensorflow",
+        "//tensorflow/core:test",
+        "//tensorflow/core:test_main",
+        "//tensorflow/core:testlib",
+    ],
+)
+
+tf_kernel_library(
     name = "reduction_ops",
     gpu_srcs = ["reduction_gpu_kernels.cu.h"],
     prefix = "reduction_ops",
@@ -4743,7 +4779,7 @@ tf_kernel_library(
 
 tf_cc_test(
     name = "bias_grad_ali_op_test",
-    size = "large",
+    size = "small",
     srcs = ["bias_grad_ali_op_test.cc"],
     deps = [
         ":bias_grad_ali_op",
@@ -5403,6 +5439,37 @@ tf_cc_test(
 )
 
 tf_kernel_library(
+    name = "fused_l2_normalize_ops",
+    srcs = [
+        "fused_l2_normalize/fused_l2_normalize_op.cc",
+    ],
+    hdrs = ["fused_l2_normalize/compile_util.h"],
+    deps = ["//third_party/eigen3"] + DYNAMIC_DEPS + mkl_deps(),
+)
+
+tf_cc_test(
+    name = "fused_l2_normalize_ops_test",
+    size = "small",
+    srcs = ["fused_l2_normalize/fused_l2_normalize_op_test.cc",
+        "fused_l2_normalize/fused_l2_normalize_grad_op_test.cc"],
+    deps = [
+        ":fused_l2_normalize_ops",
+        ":ops_testutil",
+        ":ops_util",
+        "//tensorflow/cc:cc_ops",
+        "//tensorflow/core:core_cpu",
+        "//tensorflow/core:framework",
+        "//tensorflow/core:framework_internal",
+        "//tensorflow/core:lib",
+        "//tensorflow/core:protos_all_cc",
+        "//tensorflow/core:tensorflow",
+        "//tensorflow/core:test",
+        "//tensorflow/core:test_main",
+        "//tensorflow/core:testlib",
+    ],
+)
+
+tf_kernel_library(
     name = "run_graph_op",
     prefix = "run_graph_op",
     deps = REQUIRED_DEPS + [
@@ -5606,7 +5673,9 @@ tf_kernel_library(
     prefix = "sparse_to_dense_op",
     deps = SPARSE_DEPS + [
         "//third_party/eigen3",
-    ],
+    ] + if_cuda([
+        ":gpu_utils",
+    ]),
 )
 
 tf_kernel_library(
@@ -6226,6 +6295,7 @@ tf_kernel_library(
     gpu_srcs = [
         "training_ali_ops_gpu.cu.cc",
         "training_ali_ops_gpu.h",
+        "training_ali_ops.h"
     ],
     copts = ["-g"],
     deps = [

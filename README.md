@@ -43,12 +43,6 @@ DeepRec has super large-scale distributed training capability, supporting model 
 
 **CPU Platform**
 
-```
-registry.cn-shanghai.aliyuncs.com/pai-dlc-share/deeprec-developer:deeprec-dev-cpu-py36-ubuntu18.04
-```
-
-Docker Hub repository
-
 ``````
 alideeprec/deeprec-build:deeprec-dev-cpu-py36-ubuntu18.04
 ``````
@@ -56,22 +50,12 @@ alideeprec/deeprec-build:deeprec-dev-cpu-py36-ubuntu18.04
 **GPU Platform**
 
 ```
-registry.cn-shanghai.aliyuncs.com/pai-dlc-share/deeprec-developer:deeprec-dev-gpu-py36-cu110-ubuntu18.04
-```
-
-Docker Hub repository
-
-```
 alideeprec/deeprec-build:deeprec-dev-gpu-py36-cu110-ubuntu18.04
 ```
 
 ### **How to Build**
 
-Setup Environment Variable (Compile for GPU)
-```
-$ export TF_CUDA_COMPUTE_CAPABILITIES="7.5,8.0"
-```
-configure
+Configure
 ```
 $ ./configure
 ```
@@ -101,24 +85,17 @@ $ pip3 install /tmp/tensorflow_pkg/tensorflow-1.15.5+${version}-cp36-cp36m-linux
 ```
 
 ### **Latest Release Images**
-#### Image for GPU CUDA11.0
-```
-registry.cn-shanghai.aliyuncs.com/pai-dlc-share/deeprec-training:deeprec2204u1-gpu-py36-cu110-ubuntu18.04
-```
-Docker Hub repository
-
-```
-alideeprec/deeprec-release:deeprec2204u1-gpu-py36-cu110-ubuntu18.04
-```
 
 #### Image for CPU
 
 ```
-registry.cn-shanghai.aliyuncs.com/pai-dlc-share/deeprec-training:deeprec2204u1-cpu-py36-ubuntu18.04
+alideeprec/deeprec-release:deeprec2206-cpu-py36-ubuntu18.04
 ```
-Docker Hub repository
+
+#### Image for GPU CUDA11.0
+
 ```
-alideeprec/deeprec-release:deeprec2204u1-cpu-py36-ubuntu18.04
+alideeprec/deeprec-release:deeprec2206-gpu-py36-cu110-ubuntu18.04
 ```
 
 ***

@@ -6,6 +6,17 @@ GPU具有强大的并行计算能力，对于EmbeddingVariable底层的Hash Tabl
 
 
 ## 使用方法
+**配置环境变量**
+
+下面的TF_CUDA_COMPUTE_CAPABILITIES（cuCollection需要7.5及以上）
+```
+export TF_CUDA_COMPUTE_CAPABILITIES="7.5,8.0"
+```
+
+**编译**
+configure时GPU_EV配置Yes，编译打开EmbeddingVaraible on GPU版本。
+
+**使用**
 使用开启了GPU支持的DeepRec版本，在拥有NVIDIA GPU的环境下，EmbeddingVariable会自动被放置在GPU device上。
 
 我们也可手动指定device，将其放置于GPU上
@@ -26,4 +37,4 @@ with tf.device('/gpu:0'):
                 initializer=tf.ones_initializer(tf.dtypes.float32))
 ```
 
-注意：GPU版本的EmbeddingVariable暂时无法和TensorFlow自带Saver一起使用，我们后面会修复这个问题。
+注意：目前GPU EV不支持incremental checkpoint，如果使用的话EV相关的OP会被放置到CPU上，这个问题我们后续会修复。

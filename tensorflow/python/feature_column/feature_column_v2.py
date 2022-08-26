@@ -1018,7 +1018,8 @@ def shared_embedding_columns(categorical_columns,
                              ckpt_to_load_from=None,
                              tensor_name_in_ckpt=None,
                              max_norm=None,
-                             trainable=True):
+                             trainable=True,
+                             do_fusion=False):
   """List of dense columns that convert from sparse, categorical input.
 
   This is similar to `embedding_column`, except that it produces a list of
@@ -1177,7 +1178,8 @@ def shared_embedding_columns(categorical_columns,
             ckpt_to_load_from=ckpt_to_load_from,
             tensor_name_in_ckpt=tensor_name_in_ckpt,
             max_norm=max_norm,
-            trainable=trainable))
+            trainable=trainable,
+            do_fusion=do_fusion))
 
   return result
 
@@ -1191,7 +1193,8 @@ def shared_embedding_column(categorical_column,
                             tensor_name_in_ckpt=None,
                             max_norm=None,
                             trainable=True,
-                            coalesced_scope=None):
+                            coalesced_scope=None,
+                            do_fusion=False):
   """Dense column that convert from sparse, categorical input.
 
   This is similar to `embedding_column`, except that it produces a 
@@ -1292,7 +1295,8 @@ def shared_embedding_column(categorical_column,
       tensor_name_in_ckpt=tensor_name_in_ckpt,
       max_norm=max_norm,
       trainable=trainable,
-      coalesced_scope=coalesced_scope)
+      coalesced_scope=coalesced_scope,
+      do_fusion=do_fusion)
   if coalesced_scope:
     coalesced_scope.add_column(column)
     coalesced_utils.add_embedding_signature(
@@ -4320,11 +4324,16 @@ class EmbeddingColumn(
                                      trainable):
     """Private method that follows the signature of _get_dense_tensor."""
     embedding_shape = (self.categorical_column._num_buckets, self.dimension)  # pylint: disable=protected-access
+    is_sequence_embedding = isinstance(self.categorical_column, SequenceCategoricalColumn) \
+                              and isinstance(self.categorical_column.categorical_column, EmbeddingCategoricalColumn)
+    is_weight_embedding = isinstance(self.categorical_column, WeightedCategoricalColumn) \
+                              and isinstance(self.categorical_column.categorical_column, EmbeddingCategoricalColumn)
     if (weight_collections and
         ops.GraphKeys.GLOBAL_VARIABLES not in weight_collections):
       weight_collections.append(ops.GraphKeys.GLOBAL_VARIABLES)
     if isinstance(self.categorical_column, AdaptiveEmbeddingCategoricalColumn) \
-      or isinstance(self.categorical_column, EmbeddingCategoricalColumn):
+      or isinstance(self.categorical_column, EmbeddingCategoricalColumn) \
+        or is_sequence_embedding or is_weight_embedding:
       if self.categorical_column.partition_num is None:
         partitioner = None
       else:
@@ -4347,7 +4356,8 @@ class EmbeddingColumn(
         collections=weight_collections)
       return self._get_dense_tensor_internal_adaptive_helper(sparse_tensors,
                                                              hash_embeddings, ev_embeddings)
-    elif isinstance(self.categorical_column, EmbeddingCategoricalColumn):
+    elif isinstance(self.categorical_column, EmbeddingCategoricalColumn) \
+      or is_sequence_embedding or is_weight_embedding:
       embedding_weights = variable_scope.get_embedding_variable_internal(
         name='embedding_weights',
         embedding_dim=self.dimension,
@@ -4510,7 +4520,7 @@ class SharedEmbeddingColumnV2(
         'SharedEmbeddingColumnV2',
         ('categorical_column', 'dimension', 'shared_name','combiner',
          'initializer', 'ckpt_to_load_from', 'tensor_name_in_ckpt',
-         'max_norm', 'trainable', 'coalesced_scope'))):
+         'max_norm', 'trainable', 'coalesced_scope', 'do_fusion'))):
   """See `shared_embedding_column`."""
 
   def __new__(
@@ -4524,12 +4534,13 @@ class SharedEmbeddingColumnV2(
       tensor_name_in_ckpt,
       max_norm,
       trainable,
-      coalesced_scope=None):
+      coalesced_scope=None,
+      do_fusion=False):
     """Create feature column in compatible way."""
     return super(SharedEmbeddingColumnV2, cls).__new__(
         cls, categorical_column, dimension, shared_name, combiner, initializer,
         ckpt_to_load_from, tensor_name_in_ckpt, max_norm, trainable,
-        coalesced_scope=coalesced_scope)
+        coalesced_scope=coalesced_scope, do_fusion=do_fusion)
 
   @property
   def _is_v2_column(self):
@@ -4644,13 +4655,22 @@ class SharedEmbeddingColumnV2(
       })
 
     # Return embedding lookup result.
-    return embedding_ops.safe_embedding_lookup_sparse(
-        embedding_weights=embedding_weights,
-        sparse_ids=sparse_ids,
-        sparse_weights=sparse_weights,
-        combiner=self.combiner,
-        name='%s_weights' % self.name,
-        max_norm=self.max_norm)
+    if self.do_fusion:
+      return embedding_ops.fused_safe_embedding_lookup_sparse(
+          embedding_weights=embedding_weights,
+          sparse_ids=sparse_ids,
+          sparse_weights=sparse_weights,
+          combiner=self.combiner,
+          name='%s_weights' % self.name,
+          max_norm=self.max_norm)
+    else:
+      return embedding_ops.safe_embedding_lookup_sparse(
+          embedding_weights=embedding_weights,
+          sparse_ids=sparse_ids,
+          sparse_weights=sparse_weights,
+          combiner=self.combiner,
+          name='%s_weights' % self.name,
+          max_norm=self.max_norm)
 
   def _get_dense_tensor_internal(self, sparse_tensors, state_manager):
     """Private method that follows the signature of get_dense_tensor."""
@@ -6838,6 +6858,16 @@ class WeightedCategoricalColumn(
     return self.categorical_column.num_buckets
 
   @property
+  def partition_num(self):
+    """Returns partition num in this sparse feature."""
+    return self.categorical_column.partition_num
+
+  @property
+  def ev_option(self):
+    """Returns EV Option in this sparse feature."""
+    return self.categorical_column.ev_option
+  
+  @property
   @deprecation.deprecated(_FEATURE_COLUMN_DEPRECATION_DATE,
                           _FEATURE_COLUMN_DEPRECATION)
   def _num_buckets(self):
@@ -7526,6 +7556,16 @@ class SequenceCategoricalColumn(
     """Returns number of buckets in this sparse feature."""
     return self.categorical_column.num_buckets
 
+  @property
+  def partition_num(self):
+    """Returns partition num in this sparse feature."""
+    return self.categorical_column.partition_num
+
+  @property
+  def ev_option(self):
+    """Returns EV Option in this sparse feature."""
+    return self.categorical_column.ev_option
+  
   @property
   @deprecation.deprecated(_FEATURE_COLUMN_DEPRECATION_DATE,
                           _FEATURE_COLUMN_DEPRECATION)
